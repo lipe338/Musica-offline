@@ -2,10 +2,10 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Player de Música Offline 3.0</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
-  <link rel="manifest" href="/Musica-offline/manifest.json" />
+  <link rel="manifest" href="./manifest.json" />
   <meta name="theme-color" content="#4CAF50" />
   <style>
     body {
@@ -100,6 +100,7 @@
     <button id="clearBtn">Limpar Músicas</button>
     <div class="status" id="statusMsg"></div>
   </div>
+
   <script>
     const dbName = "musicDB";
     const storeName = "musics";
@@ -132,7 +133,6 @@
         const db = await openDB();
         for (const file of files) {
           if (!file.type.startsWith("audio/")) continue;
-
           const exists = await new Promise((res, rej) => {
             const tx = db.transaction(storeName, "readonly");
             const store = tx.objectStore(storeName);
@@ -141,7 +141,6 @@
             req.onerror = () => rej(req.error);
           });
           if (exists) continue;
-
           const arrayBuffer = await file.arrayBuffer();
           await new Promise((resolve, reject) => {
             const tx = db.transaction(storeName, "readwrite");
@@ -202,11 +201,9 @@
       currentIndex = index;
       const song = songs[index];
       player.pause();
-
       if (player.src && player.src.startsWith("blob:")) {
         URL.revokeObjectURL(player.src);
       }
-
       const bufferData = song.data instanceof ArrayBuffer ? song.data : song.data.buffer;
       const blob = new Blob([bufferData], { type: song.type });
       player.src = URL.createObjectURL(blob);
@@ -245,11 +242,11 @@
 
     window.onload = () => {
       loadSongs();
-      // Service Worker para modo offline
+      // Registrar o Service Worker
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('service-worker.js')
+        navigator.serviceWorker.register('./service-worker.js')
           .then(() => console.log('Service Worker registrado com sucesso!'))
-          .catch(err => console.error('Falha ao registrar Service Worker:', err));
+          .catch(err => console.error('Erro ao registrar Service Worker:', err));
       }
     };
   </script>
