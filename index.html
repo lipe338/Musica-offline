@@ -1,253 +1,253 @@
-<!DOCTYPE html>  <html lang="pt-br">    <head>    
-  <meta charset="UTF-8" />    
-  <meta name="viewport" content="width=device-width, initial-scale=1" />    
-  <title>Player de Música Offline 3.0</title> <!-- Título alterado para 3.0 -->    
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />    
-  <style>    
-    body {    
-      font-family: 'Inter', sans-serif;    
-      background: linear-gradient(to right, #000000, #1a2e05);    
-      color: white;    
-      display: flex;    
-      align-items: center;    
-      justify-content: center;    
-      min-height: 100vh;    
-      margin: 0;    
-      padding: 1rem;    
-    }    
-    .container {    
-      background: #121212;    
-      padding: 2rem;    
-      border-radius: 1rem;    
-      width: 90%;    
-      max-width: 600px;    
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);    
-      border: 1px solid #28371c;    
-    }    
-    h1 {    
-      text-align: center;    
-      font-size: 1.8rem;    
-      color: #4CAF50;    
-      margin-bottom: 1rem;    
-    }    
-    input[type="file"] {    
-      display: block;    
-      margin: 1rem auto;    
-      padding: 0.75rem;    
-      border-radius: 8px;    
-      background: #28371c;    
-      color: white;    
-      border: none;    
-      width: calc(100% - 1rem);    
-      cursor: pointer;    
-    }    
-    ul {    
-      list-style: none;    
-      padding: 0;    
-      max-height: 250px;    
-      overflow-y: auto;    
-      margin: 1rem 0;    
-      background: #28371c;    
-      border-radius: 0.5rem;    
-    }    
-    li {    
-      padding: 0.75rem 1rem;    
-      border-bottom: 1px solid #3a3a3a;    
-      cursor: pointer;    
-    }    
-    li:hover {    
-      background: #3a4a2b;    
-    }    
-    li.active {    
-      background: #4CAF50;    
-      font-weight: bold;    
-      color: #121212;    
-    }    
-    audio {    
-      width: 100%;    
-      margin-top: 1rem;    
-      filter: invert(1) hue-rotate(180deg) brightness(1.5) saturate(0.8);    
-    }    
-    button {    
-      background: #4CAF50;    
-      color: white;    
-      padding: 0.75rem;    
-      border: none;    
-      border-radius: 0.5rem;    
-      width: 100%;    
-      cursor: pointer;    
-      margin-top: 1rem;    
-      font-weight: bold;    
-    }    
-    .status {    
-      margin-top: 1rem;    
-      font-size: 0.9rem;    
-      text-align: center;    
-      color: #90EE90;    
-    }    
-  </style>    
-</head>    
-<body>    
-  <div class="container">    
-    <h1>Player de Música Offline 3.0</h1> <!-- Título alterado para 3.0 -->    
-    <input type="file" id="fileInput" accept="audio/*" multiple />    
-    <ul id="musicList"><li>Nenhuma música carregada</li></ul>    
-    <audio id="player" controls></audio>    
-    <button id="clearBtn">Limpar Músicas</button>    
-    <div class="status" id="statusMsg"></div>    
-  </div>    <script>    
-    const dbName = "musicDB";    
-    const storeName = "musics";    const list = document.getElementById("musicList");    
-const player = document.getElementById("player");    
-const input = document.getElementById("fileInput");    
-const statusMsg = document.getElementById("statusMsg");    
-const clearBtn = document.getElementById("clearBtn");    
-
-let songs = [];    
-let currentIndex = -1;    
-
-async function openDB() {    
-  return new Promise((resolve, reject) => {    
-    const req = indexedDB.open(dbName, 1);    
-    req.onupgradeneeded = (e) => {    
-      const db = e.target.result;    
-      if (!db.objectStoreNames.contains(storeName)) {    
-        db.createObjectStore(storeName, { keyPath: "name" });    
-      }    
-    };    
-    req.onsuccess = () => resolve(req.result);    
-    req.onerror = () => reject(req.error);    
-  });    
-}    
-
-async function saveSongs(files) {    
-  statusMsg.textContent = "Salvando músicas...";    
-  try {    
-    const db = await openDB();    
-    for (const file of files) {    
-      if (!file.type.startsWith("audio/")) continue;    
-
-      const exists = await new Promise((res, rej) => {    
-        const tx = db.transaction(storeName, "readonly");    
-        const store = tx.objectStore(storeName);    
-        const req = store.get(file.name);    
-        req.onsuccess = () => res(!!req.result);    
-        req.onerror = () => rej(req.error);    
-      });    
-      if (exists) continue;    
-
-      const arrayBuffer = await file.arrayBuffer();    
-      await new Promise((resolve, reject) => {    
-        const tx = db.transaction(storeName, "readwrite");    
-        const store = tx.objectStore(storeName);    
-        const putReq = store.put({ name: file.name, data: arrayBuffer, type: file.type });    
-        putReq.onsuccess = () => resolve();    
-        putReq.onerror = () => reject(putReq.error);    
-      });    
-    }    
-    db.close();    
-    await loadSongs();    
-    statusMsg.textContent = "Músicas salvas com sucesso!";    
-  } catch (err) {    
-    console.error("Erro ao salvar:", err);    
-    statusMsg.textContent = "Erro ao salvar músicas.";    
-  }    
-}    
-
-async function loadSongs() {    
-  try {    
-    const db = await openDB();    
-    const tx = db.transaction(storeName, "readonly");    
-    const store = tx.objectStore(storeName);    
-    const req = store.getAll();    
-    return new Promise((resolve, reject) => {    
-      req.onsuccess = () => {    
-        songs = req.result;    
-        renderList();    
-        resolve();    
-        db.close();    
-      };    
-      req.onerror = () => {    
-        list.innerHTML = "<li>Erro ao carregar músicas.</li>";    
-        reject(req.error);    
-      };    
-    });    
-  } catch (err) {    
-    list.innerHTML = "<li>Erro ao carregar músicas.</li>";    
-  }    
-}    
-
-function renderList() {    
-  list.innerHTML = "";    
-  if (!songs.length) {    
-    list.innerHTML = "<li>Nenhuma música carregada</li>";    
-    return;    
-  }    
-  songs.forEach((song, i) => {    
-    const li = document.createElement("li");    
-    li.textContent = song.name;    
-    if (i === currentIndex) li.classList.add("active");    
-    li.onclick = () => playSong(i);    
-    list.appendChild(li);    
-  });    
-}    
-
-function playSong(index) {    
-  currentIndex = index;    
-  const song = songs[index];    
-  player.pause();    
-
-  if (player.src && player.src.startsWith("blob:")) {    
-    URL.revokeObjectURL(player.src);    
-  }    
-
-  const bufferData = song.data instanceof ArrayBuffer ? song.data : song.data.buffer;    
-  const blob = new Blob([bufferData], { type: song.type });    
-  player.src = URL.createObjectURL(blob);    
-  player.play();    
-  renderList();    
-}    
-
-player.addEventListener("ended", () => {    
-  if (currentIndex + 1 < songs.length) {    
-    playSong(currentIndex + 1);    
-  } else {    
-    currentIndex = -1;    
-    renderList();    
-  }    
-});    
-
-input.onchange = () => {    
-  const files = Array.from(input.files);    
-  if (files.length) saveSongs(files);    
-};    
-
-clearBtn.onclick = async () => {    
-  statusMsg.textContent = "Limpando músicas...";    
-  const db = await openDB();    
-  const tx = db.transaction(storeName, "readwrite");    
-  tx.objectStore(storeName).clear();    
-  tx.oncomplete = () => {    
-    songs = [];    
-    currentIndex = -1;    
-    player.pause();    
-    player.src = "";    
-    statusMsg.textContent = "Músicas removidas.";    
-    renderList();    
-  };    
-};    
-
-window.onload = () => {    
-  loadSongs();    
-  // Código de registro do Service Worker conforme o tutorial    
-  if ('serviceWorker' in navigator) {    
-    navigator.serviceWorker.register('service-worker.js')    
-      .then(() => console.log('Service Worker registrado com sucesso!'))    
-      .catch(err => console.error('Falha ao registrar Service Worker:', err));    
-  }    
-};
-
-</script>  </body>
-
-</html>   
+<!DOCTYPE html>  <html lang="pt-br">  
+<head>  
+  <meta charset="UTF-8" />  
+  <meta name="viewport" content="width=device-width, initial-scale=1" />  
+  <title>Player de Música Offline 3.0</title>  
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />  
+  <style>  
+    body {  
+      font-family: 'Inter', sans-serif;  
+      background: linear-gradient(to right, #000000, #1a2e05);  
+      color: white;  
+      display: flex;  
+      align-items: center;  
+      justify-content: center;  
+      min-height: 100vh;  
+      margin: 0;  
+      padding: 1rem;  
+    }  
+    .container {  
+      background: #121212;  
+      padding: 2rem;  
+      border-radius: 1rem;  
+      width: 90%;  
+      max-width: 600px;  
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);  
+      border: 1px solid #28371c;  
+    }  
+    h1 {  
+      text-align: center;  
+      font-size: 1.8rem;  
+      color: #4CAF50;  
+      margin-bottom: 1rem;  
+    }  
+    input[type="file"] {  
+      display: block;  
+      margin: 1rem auto;  
+      padding: 0.75rem;  
+      border-radius: 8px;  
+      background: #28371c;  
+      color: white;  
+      border: none;  
+      width: calc(100% - 1rem);  
+      cursor: pointer;  
+    }  
+    ul {  
+      list-style: none;  
+      padding: 0;  
+      max-height: 250px;  
+      overflow-y: auto;  
+      margin: 1rem 0;  
+      background: #28371c;  
+      border-radius: 0.5rem;  
+    }  
+    li {  
+      padding: 0.75rem 1rem;  
+      border-bottom: 1px solid #3a3a3a;  
+      cursor: pointer;  
+    }  
+    li:hover {  
+      background: #3a4a2b;  
+    }  
+    li.active {  
+      background: #4CAF50;  
+      font-weight: bold;  
+      color: #121212;  
+    }  
+    audio {  
+      width: 100%;  
+      margin-top: 1rem;  
+      filter: invert(1) hue-rotate(180deg) brightness(1.5) saturate(0.8);  
+    }  
+    button {  
+      background: #4CAF50;  
+      color: white;  
+      padding: 0.75rem;  
+      border: none;  
+      border-radius: 0.5rem;  
+      width: 100%;  
+      cursor: pointer;  
+      margin-top: 1rem;  
+      font-weight: bold;  
+    }  
+    .status {  
+      margin-top: 1rem;  
+      font-size: 0.9rem;  
+      text-align: center;  
+      color: #90EE90;  
+    }  
+  </style>  
+</head>  
+<body>  
+  <div class="container">  
+    <h1>Player de Música Offline 3.0</h1>  
+    <input type="file" id="fileInput" accept="audio/*" multiple />  
+    <ul id="musicList"><li>Nenhuma música carregada</li></ul>  
+    <audio id="player" controls></audio>  
+    <button id="clearBtn">Limpar Músicas</button>  
+    <div class="status" id="statusMsg"></div>  
+  </div>    <script>  
+    const dbName = "musicDB";  
+    const storeName = "musics";  
+    const list = document.getElementById("musicList");  
+    const player = document.getElementById("player");  
+    const input = document.getElementById("fileInput");  
+    const statusMsg = document.getElementById("statusMsg");  
+    const clearBtn = document.getElementById("clearBtn");  
+  
+    let songs = [];  
+    let currentIndex = -1;  
+  
+    async function openDB() {  
+      return new Promise((resolve, reject) => {  
+        const req = indexedDB.open(dbName, 1);  
+        req.onupgradeneeded = (e) => {  
+          const db = e.target.result;  
+          if (!db.objectStoreNames.contains(storeName)) {  
+            db.createObjectStore(storeName, { keyPath: "name" });  
+          }  
+        };  
+        req.onsuccess = () => resolve(req.result);  
+        req.onerror = () => reject(req.error);  
+      });  
+    }  
+  
+    async function saveSongs(files) {  
+      statusMsg.textContent = "Salvando músicas...";  
+      try {  
+        const db = await openDB();  
+        for (const file of files) {  
+          if (!file.type.startsWith("audio/")) continue;  
+  
+          const exists = await new Promise((res, rej) => {  
+            const tx = db.transaction(storeName, "readonly");  
+            const store = tx.objectStore(storeName);  
+            const req = store.get(file.name);  
+            req.onsuccess = () => res(!!req.result);  
+            req.onerror = () => rej(req.error);  
+          });  
+          if (exists) continue;  
+  
+          const arrayBuffer = await file.arrayBuffer();  
+          await new Promise((resolve, reject) => {  
+            const tx = db.transaction(storeName, "readwrite");  
+            const store = tx.objectStore(storeName);  
+            const putReq = store.put({ name: file.name, data: arrayBuffer, type: file.type });  
+            putReq.onsuccess = () => resolve();  
+            putReq.onerror = () => reject(putReq.error);  
+          });  
+        }  
+        db.close();  
+        await loadSongs();  
+        statusMsg.textContent = "Músicas salvas com sucesso!";  
+      } catch (err) {  
+        console.error("Erro ao salvar:", err);  
+        statusMsg.textContent = "Erro ao salvar músicas.";  
+      }  
+    }  
+  
+    async function loadSongs() {  
+      try {  
+        const db = await openDB();  
+        const tx = db.transaction(storeName, "readonly");  
+        const store = tx.objectStore(storeName);  
+        const req = store.getAll();  
+        return new Promise((resolve, reject) => {  
+          req.onsuccess = () => {  
+            songs = req.result;  
+            renderList();  
+            resolve();  
+            db.close();  
+          };  
+          req.onerror = () => {  
+            list.innerHTML = "<li>Erro ao carregar músicas.</li>";  
+            reject(req.error);  
+          };  
+        });  
+      } catch (err) {  
+        list.innerHTML = "<li>Erro ao carregar músicas.</li>";  
+      }  
+    }  
+  
+    function renderList() {  
+      list.innerHTML = "";  
+      if (!songs.length) {  
+        list.innerHTML = "<li>Nenhuma música carregada</li>";  
+        return;  
+      }  
+      songs.forEach((song, i) => {  
+        const li = document.createElement("li");  
+        li.textContent = song.name;  
+        if (i === currentIndex) li.classList.add("active");  
+        li.onclick = () => playSong(i);  
+        list.appendChild(li);  
+      });  
+    }  
+  
+    function playSong(index) {  
+      currentIndex = index;  
+      const song = songs[index];  
+      player.pause();  
+  
+      if (player.src && player.src.startsWith("blob:")) {  
+        URL.revokeObjectURL(player.src);  
+      }  
+  
+      const bufferData = song.data instanceof ArrayBuffer ? song.data : song.data.buffer;  
+      const blob = new Blob([bufferData], { type: song.type });  
+      player.src = URL.createObjectURL(blob);  
+      player.play();  
+      renderList();  
+    }  
+  
+    player.addEventListener("ended", () => {  
+      if (currentIndex + 1 < songs.length) {  
+        playSong(currentIndex + 1);  
+      } else {  
+        currentIndex = -1;  
+        renderList();  
+      }  
+    });  
+  
+    input.onchange = () => {  
+      const files = Array.from(input.files);  
+      if (files.length) saveSongs(files);  
+    };  
+  
+    clearBtn.onclick = async () => {  
+      statusMsg.textContent = "Limpando músicas...";  
+      const db = await openDB();  
+      const tx = db.transaction(storeName, "readwrite");  
+      tx.objectStore(storeName).clear();  
+      tx.oncomplete = () => {  
+        songs = [];  
+        currentIndex = -1;  
+        player.pause();  
+        player.src = "";  
+        statusMsg.textContent = "Músicas removidas.";  
+        renderList();  
+      };  
+    };  
+  
+    window.onload = () => {  
+      loadSongs();  
+      // Service Worker para modo offline  
+      if ('serviceWorker' in navigator) {  
+        navigator.serviceWorker.register('service-worker.js')  
+          .then(() => console.log('Service Worker registrado com sucesso!'))  
+          .catch(err => console.error('Falha ao registrar Service Worker:', err));  
+      }  
+    };  
+  </script>  </body>  
+</html>
 
