@@ -1,26 +1,28 @@
 const CACHE_NAME = 'musica-offline-cache-v1';
+
 const FILES_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  // Se tiver CSS ou JS separados, adicione aqui:
-  // '/style.css',
-  // '/script.js',
+  '/Musica-offline/',
+  '/Musica-offline/index.html',
+  '/Musica-offline/manifest.json',
+  '/Musica-offline/imagem_512x512.png',
+  // Se tiver CSS ou JS separados, coloca aqui:
+  // '/Musica-offline/style.css',
+  // '/Musica-offline/script.js',
 ];
 
-// Instalação: cacheia os arquivos essenciais
+// Instalação: adiciona arquivos ao cache
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(FILES_TO_CACHE))
-      .then(() => self.skipWaiting()) // ativa o SW na hora
+      .then(() => self.skipWaiting())
   );
 });
 
-// Ativação: limpa caches antigos
+// Ativação: remove caches antigos
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys => 
+    caches.keys().then(keys =>
       Promise.all(
         keys.map(key => {
           if (key !== CACHE_NAME) return caches.delete(key);
@@ -30,25 +32,24 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch: responde com cache primeiro, busca rede se não tiver, e atualiza cache
+// Intercepta requisições e tenta servir do cache
 self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+
   event.respondWith(
     caches.match(event.request)
-      .then(cachedResponse => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
+      .then(response => {
+        if (response) return response;
+
         return fetch(event.request).then(networkResponse => {
           return caches.open(CACHE_NAME).then(cache => {
-            // Atualiza cache só se for requisição GET
-            if (event.request.method === 'GET') {
-              cache.put(event.request, networkResponse.clone());
-            }
+            cache.put(event.request, networkResponse.clone());
             return networkResponse;
           });
         });
       }).catch(() => {
-        // Se não tiver cache e falhar na rede, pode opcionalmente retornar fallback
+        // Aqui você pode retornar uma página offline ou algo do tipo
+        return caches.match('/Musica-offline/index.html');
       })
   );
 });
