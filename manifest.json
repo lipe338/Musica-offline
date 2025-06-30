@@ -1,0 +1,9 @@
+{
+  "name": "Musica Offline",
+  "short_name": "Musica",
+  "start_url": "/Musica-offline/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#4CAF50",
+  "description": "Player de música offline simples e rápido."
+}
